@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "concurrently \"cd front && yarn dev\" \"cd server && yarn start\""
+    "dev": "concurrently \"cd front && pnpm dev\" \"cd server && pnpm start\"",
+    "openapi-codegen": "cd front && pnpm parse"
   },
   "keywords": [],
   "author": "",
