@@ -4,6 +4,31 @@ import Handlebars from "handlebars";
 import fs from "fs";
 import path from "path";
 import { OpenAPIV3, OpenAPIV2, OpenAPI } from "openapi-types";
+import prettier from "prettier";
+
+export function removeDescriptions<T>(schema: T): T {
+  if (Array.isArray(schema)) {
+    return schema.map((item) => removeDescriptions(item)) as T;
+  } else if (typeof schema === "object" && schema !== null) {
+    const newObj: any = {};
+
+    for (const key in schema) {
+      if (key === "description") continue;
+
+      const value = (schema as any)[key];
+      newObj[key] = removeDescriptions(value);
+    }
+
+    return newObj;
+  }
+
+  return schema;
+}
+
+function generateZodSchema(schema: OpenAPIV3.SchemaObject): string {
+  const schemaCopy = removeDescriptions(schema);
+  return jsonSchemaToZod(schemaCopy);
+}
 
 interface OpenApiV3SchemasObject {
   [key: string]: OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject;
@@ -44,7 +69,7 @@ export async function convertSwaggerToZodSchema(swaggerUrl: string) {
         ...schema,
       };
 
-      zodSchemas[schemaName] = jsonSchemaToZod(jsonSchema);
+      zodSchemas[schemaName] = generateZodSchema(jsonSchema);
     }
 
     const templatePath = path.join(dir, "templates", "zod-schema.hbs");
@@ -55,7 +80,14 @@ export async function convertSwaggerToZodSchema(swaggerUrl: string) {
       schemas: zodSchemas,
     });
 
-    fs.writeFileSync(path.join(dir, "out", "generated-schemas.ts"), result);
+    const formattedResult = await prettier.format(result, {
+      parser: "typescript",
+    });
+
+    fs.writeFileSync(
+      path.join(dir, "out", "generated-schemas.ts"),
+      formattedResult,
+    );
 
     console.log("Zod 스키마가 성공적으로 생성되었습니다.");
   } catch (err) {

@@ -1,0 +1,39 @@
+{{#if imports.length}}
+    import {
+    {{#each imports}}
+        {{this}}{{#unless @last}},{{/unless}}
+    {{/each}}
+    } from './generated-schemas';
+{{/if}}
+import { z } from 'zod';
+
+export const resources = {
+{{#each resources}}
+    {{@key}}: {
+    path: '{{path}}',
+    method: '{{method}}',
+    params: {
+    {{#if params.path}}
+        path: {
+        {{#each params.path}}
+            {{@key}}: {{{ this }}},
+        {{/each}}
+        },
+    {{/if}}
+    {{#if params.query}}
+        query: {
+        {{#each params.query}}
+            {{@key}}: {{{ this }}},
+        {{/each}}
+        },
+    {{/if}}
+    {{#if params.body}}
+        body: {{{ params.body }}},
+    {{/if}}
+    },
+    {{#if responseType}}
+        responseType: {{{ responseType }}},
+    {{/if}}
+    },
+{{/each}}
+};
