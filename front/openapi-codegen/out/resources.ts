@@ -1,41 +1,13 @@
-import { Pet, ApiResponse, Order, User } from "./generated-schemas";
+import { ApiResponse, Pet, Order, User } from "./generated-schemas";
 import { z } from "zod";
 
 export const resources = {
-  getPetById: {
-    path: "/pet/{petId}",
-    method: "get",
-    params: {
-      path: {
-        petId: z.number().int().describe("ID of pet to return"),
-      },
-    },
-    responseType: Pet,
-  },
-  updatePetWithForm: {
-    path: "/pet/{petId}",
-    method: "post",
-    params: {
-      path: {
-        petId: z.number().int().describe("ID of pet that needs to be updated"),
-      },
-    },
-  },
-  deletePet: {
-    path: "/pet/{petId}",
-    method: "delete",
-    params: {
-      path: {
-        petId: z.number().int().describe("Pet id to delete"),
-      },
-    },
-  },
   uploadFile: {
     path: "/pet/{petId}/uploadImage",
     method: "post",
     params: {
       path: {
-        petId: z.number().int().describe("ID of pet to update"),
+        petId: z.number().int(),
       },
     },
     responseType: ApiResponse,
@@ -59,9 +31,9 @@ export const resources = {
     method: "get",
     params: {
       query: {
-        status: z
-          .array(z.enum(["available", "pending", "sold"]).default("available"))
-          .describe("Status values that need to be considered for filter"),
+        status: z.array(
+          z.enum(["available", "pending", "sold"]).default("available"),
+        ),
       },
     },
     responseType: z.array(Pet),
@@ -71,44 +43,44 @@ export const resources = {
     method: "get",
     params: {
       query: {
-        tags: z.array(z.string()).describe("Tags to filter by"),
+        tags: z.array(z.string()),
       },
     },
     responseType: z.array(Pet),
+  },
+  getPetById: {
+    path: "/pet/{petId}",
+    method: "get",
+    params: {
+      path: {
+        petId: z.number().int(),
+      },
+    },
+    responseType: Pet,
+  },
+  updatePetWithForm: {
+    path: "/pet/{petId}",
+    method: "post",
+    params: {
+      path: {
+        petId: z.number().int(),
+      },
+    },
+  },
+  deletePet: {
+    path: "/pet/{petId}",
+    method: "delete",
+    params: {
+      path: {
+        petId: z.number().int(),
+      },
+    },
   },
   getInventory: {
     path: "/store/inventory",
     method: "get",
     params: {},
     responseType: z.record(z.number().int()),
-  },
-  getOrderById: {
-    path: "/store/order/{orderId}",
-    method: "get",
-    params: {
-      path: {
-        orderId: z
-          .number()
-          .int()
-          .gte(1)
-          .lte(10)
-          .describe("ID of pet that needs to be fetched"),
-      },
-    },
-    responseType: Order,
-  },
-  deleteOrder: {
-    path: "/store/order/{orderId}",
-    method: "delete",
-    params: {
-      path: {
-        orderId: z
-          .number()
-          .int()
-          .gte(1)
-          .describe("ID of the order that needs to be deleted"),
-      },
-    },
   },
   placeOrder: {
     path: "/store/order",
@@ -118,44 +90,23 @@ export const resources = {
     },
     responseType: Order,
   },
-  getUserByName: {
-    path: "/user/{username}",
+  getOrderById: {
+    path: "/store/order/{orderId}",
     method: "get",
     params: {
       path: {
-        username: z
-          .string()
-          .describe(
-            "The name that needs to be fetched. Use user1 for testing. ",
-          ),
+        orderId: z.number().int().gte(1).lte(10),
       },
     },
-    responseType: User,
+    responseType: Order,
   },
-  updateUser: {
-    path: "/user/{username}",
-    method: "put",
-    params: {
-      path: {
-        username: z.string().describe("name that need to be updated"),
-      },
-      body: User,
-    },
-  },
-  deleteUser: {
-    path: "/user/{username}",
+  deleteOrder: {
+    path: "/store/order/{orderId}",
     method: "delete",
     params: {
       path: {
-        username: z.string().describe("The name that needs to be deleted"),
+        orderId: z.number().int().gte(1),
       },
-    },
-  },
-  createUser: {
-    path: "/user",
-    method: "post",
-    params: {
-      body: User,
     },
   },
   createUsersWithListInput: {
@@ -165,13 +116,42 @@ export const resources = {
       body: z.array(User),
     },
   },
+  getUserByName: {
+    path: "/user/{username}",
+    method: "get",
+    params: {
+      path: {
+        username: z.string(),
+      },
+    },
+    responseType: User,
+  },
+  updateUser: {
+    path: "/user/{username}",
+    method: "put",
+    params: {
+      path: {
+        username: z.string(),
+      },
+      body: User,
+    },
+  },
+  deleteUser: {
+    path: "/user/{username}",
+    method: "delete",
+    params: {
+      path: {
+        username: z.string(),
+      },
+    },
+  },
   loginUser: {
     path: "/user/login",
     method: "get",
     params: {
       query: {
-        username: z.string().describe("The user name for login"),
-        password: z.string().describe("The password for login in clear text"),
+        username: z.string(),
+        password: z.string(),
       },
     },
     responseType: z.string(),
@@ -186,6 +166,13 @@ export const resources = {
     method: "post",
     params: {
       body: z.array(User),
+    },
+  },
+  createUser: {
+    path: "/user",
+    method: "post",
+    params: {
+      body: User,
     },
   },
 };

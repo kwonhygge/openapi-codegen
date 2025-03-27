@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+export const ApiResponse = z.object({
+  code: z.number().int().optional(),
+  type: z.string().optional(),
+  message: z.string().optional(),
+});
 export const Category = z.object({
   id: z.number().int().optional(),
   name: z.string().optional(),
@@ -15,11 +20,6 @@ export const Pet = z.object({
 export const Tag = z.object({
   id: z.number().int().optional(),
   name: z.string().optional(),
-});
-export const ApiResponse = z.object({
-  code: z.number().int().optional(),
-  type: z.string().optional(),
-  message: z.string().optional(),
 });
 export const Order = z.object({
   id: z.number().int().optional(),

@@ -1,5 +1,7 @@
-import { convertSwaggerToZodSchema } from "./utils/convertSwaggerToZod";
-import { convertSwaggerToResources } from "./utils/convertSwaggerToResources";
+import { convertSwaggerToZodSchema } from "./src/utils/convertSwaggerToZod";
+import { convertSwaggerToResources } from "./src/utils/convertSwaggerToResources";
 
-convertSwaggerToZodSchema("https://petstore.swagger.io/v2/swagger.json");
-convertSwaggerToResources("https://petstore.swagger.io/v2/swagger.json");
+const swaggerUrl = "https://petstore.swagger.io/v2/swagger.json";
+
+convertSwaggerToZodSchema(swaggerUrl);
+convertSwaggerToResources(swaggerUrl);

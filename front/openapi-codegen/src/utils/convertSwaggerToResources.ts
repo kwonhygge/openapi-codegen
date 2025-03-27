@@ -1,27 +1,26 @@
 import { convertParametersToJSONSchema } from "openapi-jsonschema-parameters";
 import SwaggerParser from "@apidevtools/swagger-parser";
-import { OpenAPIV2, OpenAPIV3 } from "openapi-types";
-import { jsonSchemaToZod } from "json-schema-to-zod";
+import { OpenAPIV2 } from "openapi-types";
 import path from "path";
 import fs from "fs";
 import Handlebars from "handlebars";
 import prettier from "prettier";
+import {
+  isArraySchemaObject,
+  isOpenApiV2,
+  isReferenceObject,
+  isReferenceSchema,
+} from "../types/typeGuards";
+import { ReferenceSchema } from "../types";
+import { toZodSchema } from "./common/toZodSchema";
+import { OUT_DIR, TEMPLATES_DIR } from "../constants/directories";
 
-const dir = path.join(process.cwd(), "openapi-codegen");
-
-type ReferenceSchema =
-  | OpenAPIV3.ReferenceObject
-  | OpenAPIV3.ArraySchemaObjectType;
-
-function generateZodSchema(schema: OpenAPIV3.SchemaObject): string {
-  const schemaCopy = { ...schema };
-
-  if ("description" in schemaCopy) {
-    delete schemaCopy.description;
-  }
-
-  return jsonSchemaToZod(schema);
-}
+type ResourceValue = {
+  path: string;
+  method: string;
+  params: Record<string, unknown>;
+  responseType: string | null;
+};
 
 function toArrayTypeName(typeName: string): string {
   return `z.array(${typeName})`;
@@ -47,11 +46,11 @@ function getResponseType(responses: OpenAPIV2.ResponsesObject): string | null {
 
   return isReferenceSchema(schema)
     ? extractSchemaNameFromReferenceSchema(schema)
-    : generateZodSchema(schema as OpenAPIV3.SchemaObject);
+    : toZodSchema(schema as OpenAPIV2.SchemaObject);
 }
 
 function collectUsedSchemas(
-  operationObj: OpenAPIV3.OperationObject,
+  operationObj: OpenAPIV2.OperationObject,
 ): Set<string> {
   const usedSchemas = new Set<string>();
 
@@ -68,6 +67,7 @@ function collectUsedSchemas(
     const successResponse = operationObj.responses["200"];
     if (
       "schema" in successResponse &&
+      successResponse.schema &&
       isReferenceObject(successResponse.schema)
     ) {
       const schemaName = extractSchemaNameFromReferenceSchema(
@@ -81,27 +81,17 @@ function collectUsedSchemas(
 }
 
 function extractSchemaNameFromReferenceSchema(schema: ReferenceSchema) {
-  if (isArraySchemaObject(schema) && isReferenceObject(schema.items)) {
+  if (
+    isArraySchemaObject(schema) &&
+    schema.items &&
+    isReferenceObject(schema.items)
+  ) {
     const schemaName = extractSchemaNameByRef(schema.items.$ref);
     return toArrayTypeName(schemaName);
   } else if (isReferenceObject(schema) && schema.$ref) {
     return extractSchemaNameByRef(schema.$ref);
   }
   return null;
-}
-
-function isReferenceSchema(schema: any): schema is ReferenceSchema {
-  return isReferenceObject(schema) || isArraySchemaObject(schema);
-}
-
-function isReferenceObject(schema: any): schema is OpenAPIV3.ReferenceObject {
-  return "$ref" in schema;
-}
-
-function isArraySchemaObject(
-  schema: any,
-): schema is OpenAPIV3.ArraySchemaObject {
-  return "type" in schema && schema.type === "array";
 }
 
 function convertAllPropertiesToZod(jsonSchema: any): Record<string, any> {
@@ -116,7 +106,7 @@ function convertAllPropertiesToZod(jsonSchema: any): Record<string, any> {
       for (const [propName, propSchema] of Object.entries(
         typedSchema.properties,
       )) {
-        const zodSchema = generateZodSchema(propSchema);
+        const zodSchema = toZodSchema(propSchema);
 
         zodSchemas[propName] = zodSchema;
       }
@@ -126,9 +116,9 @@ function convertAllPropertiesToZod(jsonSchema: any): Record<string, any> {
   return zodSchemas;
 }
 function parseParameters(
-  parameters: OpenAPIV3.ParameterObject[],
+  parameters: OpenAPIV2.ParameterObject[],
 ): Record<string, unknown> {
-  const paramGroups: Record<string, OpenAPIV3.ParameterObject[]> = {};
+  const paramGroups: Record<string, OpenAPIV2.ParameterObject[]> = {};
 
   parameters.forEach((param) => {
     const paramIn = param.in;
@@ -150,7 +140,7 @@ function parseParameters(
 
       parsedParams[paramIn] = isReferenceSchema(bodyParam.schema)
         ? extractSchemaNameFromReferenceSchema(bodyParam.schema)
-        : generateZodSchema(bodyParam.schema);
+        : toZodSchema(bodyParam.schema);
     } else {
       parsedParams[paramIn] = allZodSchemas;
     }
@@ -162,31 +152,25 @@ function parseParameters(
 export async function convertSwaggerToResources(swaggerUrl: string) {
   try {
     const api = await SwaggerParser.bundle(swaggerUrl);
-    const paths = api.paths as OpenAPIV3.PathsObject;
-    const resources: Record<
-      string,
-      {
-        path: string;
-        method: string;
-        params: Record<string, unknown>;
-        responseType: string | null;
-      }
-    > = {};
+
+    if (!isOpenApiV2(api)) return;
+
+    const paths = api.paths;
+
+    const resources: Record<string, ResourceValue> = {};
 
     const allUsedSchemas = new Set<string>();
 
     for (const [path, pathItem] of Object.entries(paths)) {
-      for (const [method, operation] of Object.entries(
-        pathItem as OpenAPIV3.PathItemObject,
-      )) {
-        const operationObj = operation as OpenAPIV3.OperationObject;
+      for (const [method, operation] of Object.entries(pathItem)) {
+        const operationObj = operation as OpenAPIV2.OperationObject;
         if (!operationObj) continue;
 
         const resourceKey = operationObj.operationId || "noName";
 
         const params = operationObj.parameters
           ? parseParameters(
-              operationObj.parameters as OpenAPIV3.ParameterObject[],
+              operationObj.parameters as OpenAPIV2.ParameterObject[],
             )
           : {};
 
@@ -206,7 +190,7 @@ export async function convertSwaggerToResources(swaggerUrl: string) {
       }
     }
 
-    const templatePath = path.join(dir, "templates", "resources.hbs");
+    const templatePath = path.join(TEMPLATES_DIR, "resources.hbs");
     const templateSource = fs.readFileSync(templatePath, "utf-8");
     const template = Handlebars.compile(templateSource);
 
@@ -219,7 +203,7 @@ export async function convertSwaggerToResources(swaggerUrl: string) {
       parser: "typescript",
     });
 
-    fs.writeFileSync(path.join(dir, "out", "resources.ts"), formattedResult);
+    fs.writeFileSync(path.join(OUT_DIR, "resources.ts"), formattedResult);
   } catch (err) {
     console.error("에러 발생:", err);
     throw err;
