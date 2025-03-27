@@ -1,19 +1,22 @@
-import { convertParametersToJSONSchema } from "openapi-jsonschema-parameters";
+import {
+  convertParametersToJSONSchema,
+  OpenAPIParametersAsJSONSchema,
+} from "openapi-jsonschema-parameters";
 import SwaggerParser from "@apidevtools/swagger-parser";
 import { OpenAPIV2 } from "openapi-types";
 import path from "path";
-import fs from "fs";
-import Handlebars from "handlebars";
-import prettier from "prettier";
 import {
   isArraySchemaObject,
   isOpenApiV2,
+  isOperationObject,
+  isParameterObject,
   isReferenceObject,
   isReferenceSchema,
 } from "../types/typeGuards";
 import { ReferenceSchema } from "../types";
 import { toZodSchema } from "./common/toZodSchema";
 import { OUT_DIR, TEMPLATES_DIR } from "../constants/directories";
+import { hbsToFile } from "./common/hbsToFile";
 
 type ResourceValue = {
   path: string;
@@ -36,9 +39,9 @@ function getResponseType(responses: OpenAPIV2.ResponsesObject): string | null {
     return null;
   }
 
-  const successResponse = responses["200"] as OpenAPIV2.ResponseObject;
+  const successResponse = responses["200"];
 
-  if (!successResponse.schema) {
+  if (!("schema" in successResponse) || !successResponse.schema) {
     return null;
   }
 
@@ -94,10 +97,12 @@ function extractSchemaNameFromReferenceSchema(schema: ReferenceSchema) {
   return null;
 }
 
-function convertAllPropertiesToZod(jsonSchema: any): Record<string, any> {
+function convertAllPropertiesToZod(
+  jsonSchema: OpenAPIParametersAsJSONSchema,
+): Record<string, any> {
   const zodSchemas: Record<string, any> = {};
 
-  for (const [paramIn, schemaDefinition] of Object.entries(jsonSchema)) {
+  for (const [_, schemaDefinition] of Object.entries(jsonSchema)) {
     const typedSchema = schemaDefinition as {
       properties?: Record<string, any>;
     };
@@ -115,16 +120,22 @@ function convertAllPropertiesToZod(jsonSchema: any): Record<string, any> {
 
   return zodSchemas;
 }
+
 function parseParameters(
-  parameters: OpenAPIV2.ParameterObject[],
+  parameters: OpenAPIV2.Parameters | undefined,
 ): Record<string, unknown> {
   const paramGroups: Record<string, OpenAPIV2.ParameterObject[]> = {};
+  if (!parameters) return {};
 
   parameters.forEach((param) => {
+    if (!isParameterObject(param)) return;
+
     const paramIn = param.in;
+
     if (!paramGroups[paramIn]) {
       paramGroups[paramIn] = [];
     }
+
     paramGroups[paramIn].push(param);
   });
 
@@ -156,30 +167,18 @@ export async function convertSwaggerToResources(swaggerUrl: string) {
     if (!isOpenApiV2(api)) return;
 
     const paths = api.paths;
-
+    const usedSchemasSet = new Set<string>();
     const resources: Record<string, ResourceValue> = {};
-
-    const allUsedSchemas = new Set<string>();
 
     for (const [path, pathItem] of Object.entries(paths)) {
       for (const [method, operation] of Object.entries(pathItem)) {
-        const operationObj = operation as OpenAPIV2.OperationObject;
-        if (!operationObj) continue;
+        const operationObj = operation;
+        if (!operationObj || !isOperationObject(operationObj)) continue;
 
         const resourceKey = operationObj.operationId || "noName";
 
-        const params = operationObj.parameters
-          ? parseParameters(
-              operationObj.parameters as OpenAPIV2.ParameterObject[],
-            )
-          : {};
-
-        const responseType = getResponseType(
-          operationObj.responses as OpenAPIV2.ResponsesObject,
-        );
-
-        const usedSchemas = collectUsedSchemas(operationObj);
-        usedSchemas.forEach((schema) => allUsedSchemas.add(schema));
+        const params = parseParameters(operationObj.parameters);
+        const responseType = getResponseType(operationObj.responses);
 
         resources[resourceKey] = {
           path,
@@ -187,23 +186,19 @@ export async function convertSwaggerToResources(swaggerUrl: string) {
           params,
           responseType,
         };
+
+        const usedSchemas = collectUsedSchemas(operationObj);
+        usedSchemas.forEach((schema) => usedSchemasSet.add(schema));
       }
     }
 
     const templatePath = path.join(TEMPLATES_DIR, "resources.hbs");
-    const templateSource = fs.readFileSync(templatePath, "utf-8");
-    const template = Handlebars.compile(templateSource);
+    const outputPath = path.join(OUT_DIR, "resources.ts");
 
-    const result = template({
+    await hbsToFile(templatePath, outputPath, {
       resources,
-      imports: Array.from(allUsedSchemas),
+      imports: Array.from(usedSchemasSet),
     });
-
-    const formattedResult = await prettier.format(result, {
-      parser: "typescript",
-    });
-
-    fs.writeFileSync(path.join(OUT_DIR, "resources.ts"), formattedResult);
   } catch (err) {
     console.error("에러 발생:", err);
     throw err;

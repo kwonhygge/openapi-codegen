@@ -22,3 +22,11 @@ export function isArraySchemaObject(
 ): schema is OpenAPIV2.ItemsObject {
   return "type" in schema && schema.type === "array";
 }
+
+export function isOperationObject(obj: any): obj is OpenAPIV2.OperationObject {
+  return typeof obj !== "string" && !Array.isArray(obj);
+}
+
+export function isParameterObject(obj: any): obj is OpenAPIV2.Parameter {
+  return "in" in obj;
+}
