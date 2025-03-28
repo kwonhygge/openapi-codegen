@@ -1,9 +1,9 @@
 import SwaggerParser from "@apidevtools/swagger-parser";
+import { isOpenApiV2 } from "../../types/typeGuards";
+import { toZodSchema } from "../common/toZodSchema";
+import { OUT_DIR, TEMPLATES_DIR } from "../../constants/directories";
+import { hbsToFile } from "../common/hbsToFile";
 import path from "path";
-import { isOpenApiV2 } from "../types/typeGuards";
-import { toZodSchema } from "./common/toZodSchema";
-import { OUT_DIR, TEMPLATES_DIR } from "../constants/directories";
-import { hbsToFile } from "./common/hbsToFile";
 
 interface ZodSchemas {
   [key: string]: string;
